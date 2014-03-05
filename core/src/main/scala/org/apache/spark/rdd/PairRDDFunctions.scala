@@ -38,7 +38,7 @@ import org.apache.hadoop.mapreduce.{OutputFormat => NewOutputFormat, Job => NewA
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat => NewFileOutputFormat}
 
 // SparkHadoopWriter and SparkHadoopMapReduceUtil are actually source files defined in Spark.
-import org.apache.hadoop.mapred.SparkHadoopWriter
+import org.apache.spark.mapred.SparkHadoopWriter
 import org.apache.spark.mapreduce.SparkHadoopMapReduceUtil
 
 import org.apache.spark._

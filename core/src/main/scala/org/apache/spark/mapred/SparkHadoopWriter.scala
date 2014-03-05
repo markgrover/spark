@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapred
+package org.apache.spark.mapred
 
 import java.io.IOException
 import java.text.NumberFormat
