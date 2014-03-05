@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapreduce
+package org.apache.spark.mapreduce
 
 import java.lang.{Boolean => JBoolean, Integer => JInteger}
 
