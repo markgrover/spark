@@ -34,6 +34,7 @@ import parquet.io.InvalidRecordException
 import parquet.schema.MessageType
 
 import org.apache.spark.{Logging, SerializableWritable, SparkContext, TaskContext}
+import org.apache.spark.mapreduce.SparkHadoopMapReduceUtil
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, Row}
 import org.apache.spark.sql.catalyst.types.StructType

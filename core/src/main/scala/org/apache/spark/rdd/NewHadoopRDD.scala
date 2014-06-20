@@ -28,6 +28,7 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.input.WholeTextFileInputFormat
 import org.apache.spark.InterruptibleIterator
 import org.apache.spark.Logging
+import org.apache.spark.mapreduce.SparkHadoopMapReduceUtil
 import org.apache.spark.Partition
 import org.apache.spark.SerializableWritable
 import org.apache.spark.{SparkContext, TaskContext}

@@ -15,7 +15,9 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.mapred
+package org.apache.spark.mapred
+
+import org.apache.hadoop.mapred._
 
 private[apache]
 trait SparkHadoopMapRedUtil {

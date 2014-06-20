@@ -29,6 +29,7 @@ import org.apache.hadoop.mapred._
 import org.apache.hadoop.io.Writable
 
 import org.apache.spark.{Logging, SerializableWritable, SparkHadoopWriter}
+import org.apache.spark.mapred.SparkHadoopMapRedUtil
 
 /**
  * Internal helper class that saves an RDD using a Hive OutputFormat.
