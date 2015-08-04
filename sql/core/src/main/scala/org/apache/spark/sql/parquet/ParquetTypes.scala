@@ -123,7 +123,7 @@ private[parquet] object ParquetTypesConverter extends Logging {
     if (origPath == null) {
       throw new IllegalArgumentException("Unable to read Parquet metadata: path is null")
     }
-    val job = new Job()
+    val job = Job.getInstance()
     val conf = configuration.getOrElse(ContextUtil.getConfiguration(job))
     val fs: FileSystem = origPath.getFileSystem(conf)
     if (fs == null) {

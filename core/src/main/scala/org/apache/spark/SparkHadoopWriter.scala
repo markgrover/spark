@@ -25,6 +25,7 @@ import java.util.Date
 import org.apache.hadoop.mapred._
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.mapreduce.TaskType
 
 import org.apache.spark.mapred.SparkHadoopMapRedUtil
 import org.apache.spark.rdd.HadoopRDD
@@ -151,7 +152,7 @@ class SparkHadoopWriter(@transient jobConf: JobConf)
 
     jID = new SerializableWritable[JobID](SparkHadoopWriter.createJobID(now, jobid))
     taID = new SerializableWritable[TaskAttemptID](
-        new TaskAttemptID(new TaskID(jID.value, true, splitID), attemptID))
+        new TaskAttemptID(new TaskID(jID.value, TaskType.MAP, splitID), attemptID))
   }
 }
 
@@ -172,6 +173,6 @@ object SparkHadoopWriter {
     if (outputPath == null || fs == null) {
       throw new IllegalArgumentException("Incorrectly formatted output path")
     }
-    outputPath.makeQualified(fs)
+    outputPath.makeQualified(fs.getUri, fs.getWorkingDirectory)
   }
 }
