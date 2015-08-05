@@ -141,8 +141,9 @@ private[spark] class YarnClientSchedulerBackend(
     val t = new Thread {
       override def run() {
         try {
-          val (state, _) = client.monitorApplication(appId, logApplicationReport = false)
+          val (state, finalStatus) = client.monitorApplication(appId, logApplicationReport = true)
           logError(s"Yarn application has already exited with state $state!")
+          logError(s"Yarn application exited with status $finalStatus")
           sc.stop()
         } catch {
           case e: InterruptedException => logInfo("Interrupting monitor thread")
