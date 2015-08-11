@@ -22,6 +22,7 @@ import java.util.concurrent._
 import java.util.regex.Pattern
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -423,6 +424,7 @@ private[yarn] class YarnAllocator(
     for (completedContainer <- completedContainers) {
       val containerId = completedContainer.getContainerId
       val alreadyReleased = releasedContainers.remove(containerId)
+      var completedContainerReason : String = ""
       if (!alreadyReleased) {
         // Decrement the number of executors running. The next iteration of
         // the ApplicationMaster's reporting thread will take care of allocating.
@@ -435,19 +437,25 @@ private[yarn] class YarnAllocator(
         // there are some exit status' we shouldn't necessarily count against us, but for
         // now I think its ok as none of the containers are expected to exit
         if (completedContainer.getExitStatus == ContainerExitStatus.PREEMPTED) {
-          logInfo("Container preempted: " + containerId)
+          val msg = "Container preempted: " + containerId
+          logInfo(msg)
+          completedContainerReason = msg
         } else if (completedContainer.getExitStatus == -103) { // vmem limit exceeded
           logWarning(memLimitExceededLogMessage(
             completedContainer.getDiagnostics,
             VMEM_EXCEEDED_PATTERN))
+          completedContainerReason = completedContainer.getDiagnostics
         } else if (completedContainer.getExitStatus == -104) { // pmem limit exceeded
           logWarning(memLimitExceededLogMessage(
             completedContainer.getDiagnostics,
             PMEM_EXCEEDED_PATTERN))
+          completedContainerReason = completedContainer.getDiagnostics
         } else if (completedContainer.getExitStatus != 0) {
-          logInfo("Container marked as failed: " + containerId +
+          val msg = "Container marked as failed: " + containerId +
             ". Exit status: " + completedContainer.getExitStatus +
-            ". Diagnostics: " + completedContainer.getDiagnostics)
+            ". Diagnostics: " + completedContainer.getDiagnostics
+          logInfo(msg)
+          completedContainerReason = msg
           numExecutorsFailed += 1
         }
       }
@@ -474,7 +482,8 @@ private[yarn] class YarnAllocator(
           // Notify backend about the failure of the executor
           numUnexpectedContainerRelease += 1
           driverRef.send(RemoveExecutor(eid,
-            s"Yarn deallocated the executor $eid (container $containerId)"))
+            s"Yarn deallocated the executor $eid (container $containerId). " +
+              s"Reason: $completedContainerReason"))
         }
       }
     }

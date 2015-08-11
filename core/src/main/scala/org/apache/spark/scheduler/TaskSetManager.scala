@@ -650,6 +650,7 @@ private[spark] class TaskSetManager(
    * DAG Scheduler.
    */
   def handleFailedTask(tid: Long, state: TaskState, reason: TaskEndReason) {
+    logDebug(s"handleFailedTask called with ${tid}, ${state}, ${reason}} ")
     val info = taskInfos(tid)
     if (info.failed) {
       return
@@ -662,6 +663,7 @@ private[spark] class TaskSetManager(
 
     val failureReason = s"Lost task ${info.id} in stage ${taskSet.id} (TID $tid, ${info.host}): " +
       reason.asInstanceOf[TaskFailedReason].toErrorString
+    logDebug(failureReason)
     reason match {
       case fetchFailed: FetchFailed =>
         logWarning(failureReason)
@@ -774,7 +776,7 @@ private[spark] class TaskSetManager(
   }
 
   /** Called by TaskScheduler when an executor is lost so we can re-enqueue our tasks */
-  override def executorLost(execId: String, host: String) {
+  override def executorLost(execId: String, host: String, reason: ExecutorLossReason) {
     logInfo("Re-queueing tasks for " + execId + " from TaskSet " + taskSet.id)
 
     // Re-enqueue pending tasks for this host based on the status of the cluster. Note
@@ -807,7 +809,7 @@ private[spark] class TaskSetManager(
     }
     // Also re-enqueue any tasks that were running on the node
     for ((tid, info) <- taskInfos if info.running && info.executorId == execId) {
-      handleFailedTask(tid, TaskState.FAILED, ExecutorLostFailure(execId))
+      handleFailedTask(tid, TaskState.FAILED, ExecutorLostFailure(execId, reason.toString))
     }
     // recalculate valid locality levels and waits when executor is lost
     recomputeLocality()

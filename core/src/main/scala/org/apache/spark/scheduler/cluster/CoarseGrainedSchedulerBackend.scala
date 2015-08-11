@@ -19,6 +19,9 @@ package org.apache.spark.scheduler.cluster
 
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.regex.Pattern
+
+import org.apache.hadoop.yarn.api.records.ContainerExitStatus
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
@@ -124,7 +127,6 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
             // Ignoring the task kill since the executor is not registered.
             logWarning(s"Attempted to kill task $taskId for unknown executor $executorId.")
         }
-
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
@@ -186,7 +188,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
       addressToExecutorId.get(remoteAddress).foreach(removeExecutor(_,
-        "remote Rpc client disassociated"))
+        "remote Rpc client disassociated. Likely due to containers exceeding thresholds, or network" +
+          "issues. Check driver logs for WARNings"))
     }
 
     // Make fake resource offers on just one executor

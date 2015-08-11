@@ -17,6 +17,10 @@
 
 package org.apache.spark.scheduler.cluster
 
+import java.util.regex.Pattern
+
+import org.apache.hadoop.yarn.api.records.ContainerExitStatus
+
 import scala.concurrent.{Future, ExecutionContext}
 
 import org.apache.spark.{Logging, SparkContext}
@@ -110,6 +114,7 @@ private[spark] abstract class YarnSchedulerBackend(
         addWebUIFilter(filterName, filterParams, proxyBase)
 
       case RemoveExecutor(executorId, reason) =>
+        logWarning(reason)
         removeExecutor(executorId, reason)
     }
 
