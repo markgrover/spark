@@ -476,13 +476,13 @@ private[spark] class TaskSchedulerImpl(
         removeExecutor(executorId, reason)
         failedExecutor = Some(executorId)
       } else {
-         // We may get multiple executorLost() calls with different loss reasons. For example, one
-         // may be triggered by a dropped connection from the slave while another may be a report
-         // of executor termination from Mesos. We produce log messages for both so we eventually
-         // report the termination reason.
+        // We may get multiple executorLost() calls with different loss reasons. For example, one
+        // may be triggered by a dropped connection from the slave while another may be a report
+        // of executor termination from Mesos. We produce log messages for both so we eventually
+        // report the termination reason.
         logError("Lost an executor " + executorId + " (already removed): " + reason)
-        }
       }
+    }
 
     // Call dagScheduler.executorLost without holding the lock on this to prevent deadlock
     if (failedExecutor.isDefined) {
