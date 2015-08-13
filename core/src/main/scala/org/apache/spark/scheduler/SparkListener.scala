@@ -22,7 +22,7 @@ import java.util.Properties
 import scala.collection.Map
 import scala.collection.mutable
 
-import org.apache.spark.{Logging, TaskEndReason}
+import org.apache.spark.{ExecutorLostFailure, Logging, TaskEndReason}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.cluster.ExecutorInfo

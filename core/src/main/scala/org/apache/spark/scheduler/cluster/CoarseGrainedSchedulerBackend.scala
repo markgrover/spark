@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import org.apache.spark.rpc._
-import org.apache.spark.{ExecutorAllocationClient, Logging, SparkEnv, SparkException, TaskState}
+import org.apache.spark._
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages._
 import org.apache.spark.util.{ThreadUtils, SerializableBuffer, AkkaUtils, Utils}
@@ -249,7 +249,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
               (executorId)) {
               listenerBus.post(
                 SparkListenerExecutorRemovedUpdate(System.currentTimeMillis(), taskId, stageId,
-                  stageAttemptId, reasonString))
+                  stageAttemptId, ExecutorLostFailure(executorId, Some(reason.toString)).toErrorString))
             }
           }
           logInfo(s"Asked to remove non-existent executor $executorId")
