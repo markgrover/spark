@@ -536,16 +536,16 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
     startTime = appStarted.time
   }
 
-  override def onExecutorRemovedUpdate(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate): Unit = synchronized {
-    val data = stageIdToData.get((executorRemovedUpdate.stageId, executorRemovedUpdate
-      .stageAttemptId))
-    if (data.isDefined) {
-      val uiData = data.get.taskData.get(executorRemovedUpdate.taskId)
-      if (uiData.isDefined) {
-        uiData.get.errorMessage = Some(executorRemovedUpdate.reason)
+  override def onExecutorRemovedUpdate(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate)
+  : Unit = synchronized {
+    stageIdToData.get((executorRemovedUpdate.stageId, executorRemovedUpdate.stageAttemptId))
+      .foreach {
+      _.taskData.get(executorRemovedUpdate.taskId).foreach {
+        _.errorMessage = Some(executorRemovedUpdate.reason)
       }
     }
   }
+
   /**
    * For testing only. Wait until at least `numExecutors` executors are up, or throw
    * `TimeoutException` if the waiting time elapsed before `numExecutors` executors up.
