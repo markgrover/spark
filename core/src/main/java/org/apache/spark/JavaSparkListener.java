@@ -80,6 +80,9 @@ public class JavaSparkListener implements SparkListener {
   public void onExecutorRemoved(SparkListenerExecutorRemoved executorRemoved) { }
 
   @Override
+  public void onExecutorRemovedUpdate(SparkListenerExecutorRemovedUpdate executorRemovedUpdate) { }
+
+  @Override
   public void onBlockUpdated(SparkListenerBlockUpdated blockUpdated) { }
 
 }
