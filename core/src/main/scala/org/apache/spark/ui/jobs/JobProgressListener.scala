@@ -536,6 +536,9 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
     startTime = appStarted.time
   }
 
+  override def onExecutorRemovedUpdate(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate): Unit = synchronized {
+    //executorRemovedUpdate.
+  }
   /**
    * For testing only. Wait until at least `numExecutors` executors are up, or throw
    * `TimeoutException` if the waiting time elapsed before `numExecutors` executors up.

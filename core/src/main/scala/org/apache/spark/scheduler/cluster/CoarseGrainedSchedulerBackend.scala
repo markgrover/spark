@@ -166,7 +166,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         context.reply(true)
 
       case RemoveExecutor(executorId, reason) =>
-        removeExecutor(executorId, reason)
+        removeExecutor(executorId, Some(reason))
         context.reply(true)
 
       case RetrieveSparkProps =>
@@ -184,9 +184,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     }
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
-      addressToExecutorId.get(remoteAddress).foreach(removeExecutor(_,
-        "Remote Rpc client disassociated. Likely due to containers exceeding thresholds, or " +
-          "network issues. Check driver logs for WARNings"))
+      addressToExecutorId.get(remoteAddress).foreach(removeExecutor(_, None))
     }
 
     // Make fake resource offers on just one executor
@@ -227,7 +225,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     }
 
     // Remove a disconnected slave from the cluster
-    def removeExecutor(executorId: String, reason: String): Unit = {
+    def removeExecutor(executorId: String, reason: Option[String]): Unit = {
       executorDataMap.get(executorId) match {
         case Some(executorInfo) =>
           // This must be synchronized because variables mutated
@@ -239,10 +237,28 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           }
           totalCoreCount.addAndGet(-executorInfo.totalCores)
           totalRegisteredExecutors.addAndGet(-1)
-          scheduler.executorLost(executorId, SlaveLost(reason))
+          val defaultReason = "Remote Rpc client disassociated. Likely due to containers " +
+            "exceeding thresholds, or network issues. Check driver logs for WARNings"
+          scheduler.executorLost(executorId, SlaveLost(reason.getOrElse(defaultReason)))
           listenerBus.post(
-            SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason))
-        case None => logInfo(s"Asked to remove non-existent executor $executorId")
+            SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.getOrElse
+              (defaultReason)))
+        case None =>
+
+          // TODO: Not sure if we should be sending another SparkListenerExecutorRemoved message
+          // here
+//          val defaultReason = "Remote Rpc client disassociated. Likely due to containers " +
+//            "exceeding thresholds, or network issues. Check driver logs for WARNings"
+//          listenerBus.post(
+//            SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.getOrElse
+//              (defaultReason)))
+          if (reason.isDefined) {
+            scheduler.executorLost(executorId, SlaveLost(reason.get))
+            // Since reason is defined, reason.get will always return something relevant.
+            listenerBus.post(
+              SparkListenerExecutorRemovedUpdate(System.currentTimeMillis(), executorId, reason.get))
+          }
+          logInfo(s"Asked to remove non-existent executor $executorId")
       }
     }
 

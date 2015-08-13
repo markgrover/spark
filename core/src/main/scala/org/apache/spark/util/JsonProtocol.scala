@@ -90,6 +90,8 @@ private[spark] object JsonProtocol {
         executorAddedToJson(executorAdded)
       case executorRemoved: SparkListenerExecutorRemoved =>
         executorRemovedToJson(executorRemoved)
+      case executorRemovedUpdate: SparkListenerExecutorRemovedUpdate =>
+        executorRemovedUpdateToJson(executorRemovedUpdate)
       case logStart: SparkListenerLogStart =>
         logStartToJson(logStart)
       case metricsUpdate: SparkListenerExecutorMetricsUpdate =>
@@ -219,6 +221,13 @@ private[spark] object JsonProtocol {
     ("Timestamp" -> executorRemoved.time) ~
     ("Executor ID" -> executorRemoved.executorId) ~
     ("Removed Reason" -> executorRemoved.reason)
+  }
+
+  def executorRemovedUpdateToJson(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate): JValue = {
+    ("Event" -> Utils.getFormattedClassName(executorRemovedUpdate)) ~
+      ("Timestamp" -> executorRemovedUpdate.time) ~
+      ("Executor ID" -> executorRemovedUpdate.executorId) ~
+      ("Removed Reason" -> executorRemovedUpdate.reason)
   }
 
   def logStartToJson(logStart: SparkListenerLogStart): JValue = {
@@ -482,6 +491,7 @@ private[spark] object JsonProtocol {
     val applicationEnd = Utils.getFormattedClassName(SparkListenerApplicationEnd)
     val executorAdded = Utils.getFormattedClassName(SparkListenerExecutorAdded)
     val executorRemoved = Utils.getFormattedClassName(SparkListenerExecutorRemoved)
+    val executorRemovedUpdate = Utils.getFormattedClassName(SparkListenerExecutorRemovedUpdate)
     val logStart = Utils.getFormattedClassName(SparkListenerLogStart)
     val metricsUpdate = Utils.getFormattedClassName(SparkListenerExecutorMetricsUpdate)
 
@@ -501,6 +511,7 @@ private[spark] object JsonProtocol {
       case `applicationEnd` => applicationEndFromJson(json)
       case `executorAdded` => executorAddedFromJson(json)
       case `executorRemoved` => executorRemovedFromJson(json)
+      case `executorRemovedUpdate` => executorRemovedUpdateFromJson(json)
       case `logStart` => logStartFromJson(json)
       case `metricsUpdate` => executorMetricsUpdateFromJson(json)
     }
@@ -613,6 +624,13 @@ private[spark] object JsonProtocol {
     val executorId = (json \ "Executor ID").extract[String]
     val reason = (json \ "Removed Reason").extract[String]
     SparkListenerExecutorRemoved(time, executorId, reason)
+  }
+
+  def executorRemovedUpdateFromJson(json: JValue): SparkListenerExecutorRemovedUpdate = {
+    val time = (json \ "Timestamp").extract[Long]
+    val executorId = (json \ "Executor ID").extract[String]
+    val reason = (json \ "Removed Reason").extract[String]
+    SparkListenerExecutorRemovedUpdate(time, executorId, reason)
   }
 
   def logStartFromJson(json: JValue): SparkListenerLogStart = {

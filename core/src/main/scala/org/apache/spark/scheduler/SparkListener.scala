@@ -99,6 +99,10 @@ case class SparkListenerExecutorRemoved(time: Long, executorId: String, reason: 
   extends SparkListenerEvent
 
 @DeveloperApi
+case class SparkListenerExecutorRemovedUpdate(time: Long, executorId: String, reason: String)
+  extends SparkListenerEvent
+
+@DeveloperApi
 case class SparkListenerBlockUpdated(blockUpdatedInfo: BlockUpdatedInfo) extends SparkListenerEvent
 
 /**
@@ -218,6 +222,11 @@ trait SparkListener {
    * Called when the driver removes an executor.
    */
   def onExecutorRemoved(executorRemoved: SparkListenerExecutorRemoved) { }
+
+  /**
+   * Called when the driver sends an updated reason about the removal of the executor
+   */
+  def onExecutorRemovedUpdate(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate) { }
 
   /**
    * Called when the driver receives a block update info.
