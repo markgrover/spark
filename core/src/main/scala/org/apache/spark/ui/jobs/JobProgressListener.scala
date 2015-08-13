@@ -540,8 +540,12 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
   : Unit = synchronized {
     stageIdToData.get((executorRemovedUpdate.stageId, executorRemovedUpdate.stageAttemptId))
       .foreach {
-      _.taskData.get(executorRemovedUpdate.taskId).foreach {
-        _.errorMessage = Some(executorRemovedUpdate.reason)
+      _.taskData.get(executorRemovedUpdate.taskId).foreach { taskUiData =>
+        taskUiData.errorMessage.foreach { errorMessage =>
+          if (errorMessage.startsWith("ExecutorLostFailure")) {
+            taskUiData.errorMessage = Some(executorRemovedUpdate.reason)
+          }
+        }
       }
     }
   }
