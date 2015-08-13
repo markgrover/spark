@@ -457,7 +457,7 @@ private[spark] class TaskSchedulerImpl(
     }
   }
 
-  def executorLostUpdate(executorId: String): Seq[(Long, Int, Int)] = {
+  def getTaskAndStageAndAttempIds(executorId: String): Seq[(Long, Int, Int)] = {
     synchronized {
       rootPool.getSortedTaskSetQueue.flatMap(taskSet =>
         for ((tid, info) <- taskSet.taskInfos if (info.executorId == executorId)) yield (tid,

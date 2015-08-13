@@ -244,12 +244,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
             SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.getOrElse
               (defaultReason)))
         case None =>
-          // Since reason is defined, reason.get will always return something relevant.
-          if (reason.isDefined) {
-            for ((taskId, stageId, stageAttemptId) <- scheduler.executorLostUpdate(executorId)) {
+          reason.foreach { reasonString =>
+            for ((taskId, stageId, stageAttemptId) <- scheduler.getTaskAndStageAndAttempIds
+              (executorId)) {
               listenerBus.post(
                 SparkListenerExecutorRemovedUpdate(System.currentTimeMillis(), taskId, stageId,
-                  stageAttemptId, reason.get))
+                  stageAttemptId, reasonString))
             }
           }
           logInfo(s"Asked to remove non-existent executor $executorId")
