@@ -457,6 +457,15 @@ private[spark] class TaskSchedulerImpl(
     }
   }
 
+  def executorLostUpdate(executorId: String): Seq[(Long, Int, Int)] = {
+    synchronized {
+      rootPool.getSortedTaskSetQueue.flatMap(taskSet =>
+        for ((tid, info) <- taskSet.taskInfos if (info.executorId == executorId)) yield (tid,
+          taskSet.stageId, taskSet.stageAttemptId)
+      )
+    }
+  }
+
   override def executorLost(executorId: String, reason: ExecutorLossReason): Unit = {
     var failedExecutor: Option[String] = None
 
@@ -471,7 +480,13 @@ private[spark] class TaskSchedulerImpl(
          // may be triggered by a dropped connection from the slave while another may be a report
          // of executor termination from Mesos. We produce log messages for both so we eventually
          // report the termination reason.
-         logError("Lost an executor " + executorId + " (already removed): " + reason)
+        rootPool.getSortedTaskSetQueue.foreach{ taskSet =>
+          // Also re-enqueue any tasks that were running on the node
+          for ((tid, info) <- taskSet.taskInfos if info.executorId == executorId) {
+
+          }
+        }
+        logError("Lost an executor " + executorId + " (already removed): " + reason)
       }
     }
     // Call dagScheduler.executorLost without holding the lock on this to prevent deadlock

@@ -226,7 +226,9 @@ private[spark] object JsonProtocol {
   def executorRemovedUpdateToJson(executorRemovedUpdate: SparkListenerExecutorRemovedUpdate): JValue = {
     ("Event" -> Utils.getFormattedClassName(executorRemovedUpdate)) ~
       ("Timestamp" -> executorRemovedUpdate.time) ~
-      ("Executor ID" -> executorRemovedUpdate.executorId) ~
+      ("Task ID" -> executorRemovedUpdate.taskId) ~
+      ("Stage ID" -> executorRemovedUpdate.stageId) ~
+      ("Stage Attempt ID" -> executorRemovedUpdate.stageAttemptId) ~
       ("Removed Reason" -> executorRemovedUpdate.reason)
   }
 
@@ -628,9 +630,11 @@ private[spark] object JsonProtocol {
 
   def executorRemovedUpdateFromJson(json: JValue): SparkListenerExecutorRemovedUpdate = {
     val time = (json \ "Timestamp").extract[Long]
-    val executorId = (json \ "Executor ID").extract[String]
+    val taskId = (json \ "Task ID").extract[Long]
+    val stageId = (json \ "Stage ID").extract[Int]
+    val stageAttemptId = (json \ "Stage Attempt ID").extract[Int]
     val reason = (json \ "Removed Reason").extract[String]
-    SparkListenerExecutorRemovedUpdate(time, executorId, reason)
+    SparkListenerExecutorRemovedUpdate(time, taskId, stageId, stageAttemptId, reason)
   }
 
   def logStartFromJson(json: JValue): SparkListenerLogStart = {

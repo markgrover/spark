@@ -244,19 +244,13 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
             SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.getOrElse
               (defaultReason)))
         case None =>
-
-          // TODO: Not sure if we should be sending another SparkListenerExecutorRemoved message
-          // here
-//          val defaultReason = "Remote Rpc client disassociated. Likely due to containers " +
-//            "exceeding thresholds, or network issues. Check driver logs for WARNings"
-//          listenerBus.post(
-//            SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.getOrElse
-//              (defaultReason)))
+          // Since reason is defined, reason.get will always return something relevant.
           if (reason.isDefined) {
-            scheduler.executorLost(executorId, SlaveLost(reason.get))
-            // Since reason is defined, reason.get will always return something relevant.
-            listenerBus.post(
-              SparkListenerExecutorRemovedUpdate(System.currentTimeMillis(), executorId, reason.get))
+            for ((taskId, stageId, stageAttemptId) <- scheduler.executorLostUpdate(executorId)) {
+              listenerBus.post(
+                SparkListenerExecutorRemovedUpdate(System.currentTimeMillis(), taskId, stageId,
+                  stageAttemptId, reason.get))
+            }
           }
           logInfo(s"Asked to remove non-existent executor $executorId")
       }

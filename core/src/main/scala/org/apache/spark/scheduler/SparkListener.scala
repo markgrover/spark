@@ -99,7 +99,8 @@ case class SparkListenerExecutorRemoved(time: Long, executorId: String, reason: 
   extends SparkListenerEvent
 
 @DeveloperApi
-case class SparkListenerExecutorRemovedUpdate(time: Long, executorId: String, reason: String)
+case class SparkListenerExecutorRemovedUpdate(time: Long, taskId: Long, stageId: Int,
+                                              stageAttemptId: Int, reason: String)
   extends SparkListenerEvent
 
 @DeveloperApi
