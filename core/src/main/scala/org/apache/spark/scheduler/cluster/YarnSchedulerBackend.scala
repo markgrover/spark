@@ -116,6 +116,7 @@ private[spark] abstract class YarnSchedulerBackend(
      */
     override def onDisconnected(rpcAddress: RpcAddress): Unit = {
       addressToExecutorId.get(rpcAddress).foreach({ executorId =>
+        logInfo(s"Received onDisconnected event for executorId: $executorId")
         pendingDisconnectedExecutors.synchronized {
           // onDisconnected could be fired multiple times from the same executor while we're
           // asynchronously contacting the AM. So keep track of the executors we're trying to
@@ -124,6 +125,7 @@ private[spark] abstract class YarnSchedulerBackend(
             pendingDisconnectedExecutors.add(executorId)
             handleDisconnectedExecutorThreadPool.submit(new Runnable() {
               override def run(): Unit = {
+                logInfo(s"Requesting loss reason for executorId: $executorId")
                 val executorLossReason =
                 // Check for the loss reason and pass the loss reason to driverEndpoint
                   yarnSchedulerEndpoint.askWithRetry[Option[ExecutorLossReason]](

@@ -36,7 +36,7 @@ import org.apache.hadoop.yarn.util.RackResolver
 
 import org.apache.log4j.{Level, Logger}
 
-import org.apache.spark.{ExecutorLostFailure, Logging, SecurityManager, SparkConf}
+import org.apache.spark.{Logging, SecurityManager, SparkConf}
 import org.apache.spark.deploy.yarn.YarnSparkHadoopUtil._
 import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
@@ -210,6 +210,7 @@ private[yarn] class YarnAllocator(
    * Note that this method is expected to be called exactly once per executor ID.
    */
   def getExecutorLossReason(executorId: String): ExecutorLossReason = synchronized {
+    logInfo(s"Executor Loss Reason asked for executor ID: $executorId")
     allocateResources()
     // Expect to be asked for a loss reason once and exactly once.
     assert(completedExecutorExitReasons.contains(executorId))
