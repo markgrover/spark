@@ -126,6 +126,9 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
+      case AcknowledgeExecutorRemoved(executorId) =>
+        context.reply(acknowledgeExecutorRemoved(executorId))
+
       case RegisterExecutor(executorId, executorRef, hostPort, cores, logUrls) =>
         Utils.checkHostPort(hostPort, "Host port expected " + hostPort)
         if (executorDataMap.contains(executorId)) {
@@ -244,6 +247,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         case None => logInfo(s"Asked to remove non-existent executor $executorId")
       }
     }
+
+    protected def acknowledgeExecutorRemoved(executorId: String): Boolean = true
 
     override def onStop() {
       reviveThread.shutdownNow()
