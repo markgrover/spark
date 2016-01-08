@@ -18,9 +18,7 @@
 // scalastyle:off println
 package org.apache.spark.examples.streaming
 
-import kafka.serializer.StringDecoder
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.StringDeserializer
 
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.kafka.v09._
