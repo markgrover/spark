@@ -49,6 +49,15 @@ import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 
 object KafkaUtils {
 
+  /**
+    * Method to enable encryption on wire when reading data from Kafka. Since Akka doesn't support
+    * client authentication with SSL, this method cannot support it either. Therefore,
+    * `ssl.keystore.location` and `ssl.keystore.password` are always left unset.
+    * @param kafkaParams Map of Kafka existing config parameters
+    * @param sc
+    * @return Updated map of Kafka config parameters. This map contains the original properties
+    * and if configured, some additional SSL related properties.
+    */
   def addSSLOptions(
       kafkaParams: Map[String, String],
       sc: SparkContext
@@ -63,15 +72,12 @@ object KafkaUtils {
         CommonClientConfigs.SECURITY_PROTOCOL_CONFIG -> Some("SSL"),
         SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG -> kafkaSSLOptions.trustStore,
         SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG -> kafkaSSLOptions.trustStorePassword,
-        SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG -> kafkaSSLOptions.keyStore,
-        SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG -> kafkaSSLOptions.keyStorePassword,
         SslConfigs.SSL_KEY_PASSWORD_CONFIG -> kafkaSSLOptions.keyPassword
       )
       kafkaParams ++ sslParams.filter(_._2.isDefined).mapValues(_.get.toString)
     } else {
       kafkaParams
     }
-
   }
 
   /** Make sure offsets are available in kafka, or throw an exception */
