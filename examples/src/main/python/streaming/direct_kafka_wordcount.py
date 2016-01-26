@@ -28,6 +28,7 @@
       examples/src/main/python/streaming/direct_kafka_wordcount.py \
       localhost:9092 test`
 """
+from __future__ import print_function
 
 import sys
 
@@ -35,16 +36,41 @@ from pyspark import SparkContext
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 
+import printUsage
+
+def printUsage():
+    print("Usage: direct_kafka_wordcount.py <broker_list> <topic> [<'old'|'new'>]", file=sys.stderr)
+    print("Broker list is a comma separated list with no spaces. The last optional", file=sys.stderr)
+    print("argument specifies what kafka consumer API to use. Defaults to old.", file=sys.stderr)
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: direct_kafka_wordcount.py <broker_list> <topic>", file=sys.stderr)
+
+    apiOldOrNew = "old"
+    if len(sys.argv) == 3:
+        brokers, topic = sys.argv[1:]
+    elif len(sys.argv) == 4:
+        brokers, topic, apiOldOrNew = sys.argv[1:]
+    else:
+        printUsage()
         exit(-1)
 
     sc = SparkContext(appName="PythonStreamingDirectKafkaWordCount")
     ssc = StreamingContext(sc, 2)
 
-    brokers, topic = sys.argv[1:]
-    kvs = KafkaUtils.createDirectStream(ssc, [topic], {"metadata.broker.list": brokers})
+    if (apiOldOrNew.lower() == "old"):
+        kvs = KafkaUtils.createDirectStream(ssc, [topic], {"metadata.broker.list": brokers,
+                                                           "auto.offset.reset": "smallest"})
+    elif (apiOldOrNew.lower() == "new"):
+        kvs = KafkaUtils.createNewDirectStream(ssc, [topic], {"bootstrap.servers": brokers,
+                                                              "group.id": "x",
+                                                              "key.deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
+                                                              "value.deserializer": "org.apache.kafka.common.serialization.StringDeserializer",
+                                                              "auto.offset.reset": "earliest"})
+    else:
+        print("Api value was %s. Expected old or new" % apiOldOrNew)
+        printUsage()
+        exit(-1)
+
     lines = kvs.map(lambda x: x[1])
     counts = lines.flatMap(lambda line: line.split(" ")) \
         .map(lambda word: (word, 1)) \

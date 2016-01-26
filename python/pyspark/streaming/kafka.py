@@ -83,6 +83,43 @@ class KafkaUtils(object):
         return stream.map(lambda k_v: (keyDecoder(k_v[0]), valueDecoder(k_v[1])))
 
     @staticmethod
+    def createNewDirectStream(ssc, topics, kafkaParams, fromOffsets=None,
+                           keyDecoder=utf8_decoder, valueDecoder=utf8_decoder,
+                           messageHandler=None):
+        """
+        .. note:: Experimental
+
+        Create an input stream that directly pulls messages from a Kafka Broker and specific offset.
+        This stream uses the new Kafka Consumer API (introduced in Kafka v0.9.0)
+
+        This is not a receiver based Kafka input stream, it directly pulls the message from Kafka
+        in each batch duration and processed without storing.
+
+        This does not use Zookeeper to store offsets. The consumed offsets are tracked
+        by the stream itself. For interoperability with Kafka monitoring tools that depend on
+        Zookeeper, you have to update Kafka/Zookeeper yourself from the streaming application.
+        You can access the offsets used in each batch from the generated RDDs (see
+
+        To recover from driver failures, you have to enable checkpointing in the StreamingContext.
+        The information on consumed offset can be recovered from the checkpoint.
+        See the programming guide for details (constraints, etc.).
+
+        :param ssc:  StreamingContext object.
+        :param topics:  list of topic_name to consume.
+        :param kafkaParams: Additional params for Kafka.
+        :param fromOffsets: Per-topic/partition Kafka offsets defining the (inclusive) starting
+                            point of the stream.
+        :param keyDecoder:  A function used to decode key (default is utf8_decoder).
+        :param valueDecoder:  A function used to decode value (default is utf8_decoder).
+        :param messageHandler: A function used to convert KafkaMessageAndMetadata. You can assess
+                               meta using messageHandler (default is None).
+        :return: A DStream object
+        """
+        KafkaUtils.__createDirectStreamWithHelper(ssc, topics, kafkaParams, fromOffsets, keyDecoder,
+                                       valueDecoder, messageHandler,
+                                       "org.apache.spark.streaming.kafka.newapi.KafkaUtilsPythonHelper")
+
+    @staticmethod
     def createDirectStream(ssc, topics, kafkaParams, fromOffsets=None,
                            keyDecoder=utf8_decoder, valueDecoder=utf8_decoder,
                            messageHandler=None):
@@ -114,6 +151,15 @@ class KafkaUtils(object):
                                meta using messageHandler (default is None).
         :return: A DStream object
         """
+        KafkaUtils.__createDirectStreamWithHelper(ssc, topics, kafkaParams, fromOffsets, keyDecoder,
+                                       valueDecoder, messageHandler,
+                                       "org.apache.spark.streaming.kafka.KafkaUtilsPythonHelper")
+
+    @staticmethod
+    def __createDirectStreamWithHelper (ssc, topics, kafkaParams, fromOffsets,
+                           keyDecoder, valueDecoder,
+                           messageHandler,
+                           helperClassName):
         if fromOffsets is None:
             fromOffsets = dict()
         if not isinstance(topics, list):
@@ -131,7 +177,7 @@ class KafkaUtils(object):
 
         try:
             helperClass = ssc._jvm.java.lang.Thread.currentThread().getContextClassLoader() \
-                .loadClass("org.apache.spark.streaming.kafka.KafkaUtilsPythonHelper")
+                .loadClass(helperClassName)
             helper = helperClass.newInstance()
 
             jfromOffsets = dict([(k._jTopicAndPartition(helper),
