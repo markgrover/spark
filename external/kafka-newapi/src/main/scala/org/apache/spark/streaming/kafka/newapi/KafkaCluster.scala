@@ -103,8 +103,7 @@ class KafkaCluster[K: ClassTag, V: ClassTag](val kafkaParams: Map[String, String
     })
   }
 
-  def getCommittedOffsets(topicPartitions: Set[TopicPartition]):
-    Map[TopicPartition, Long] = {
+  def getCommittedOffsets(topicPartitions: Set[TopicPartition]): Map[TopicPartition, Long] = {
     withConsumer(consumer => {
       consumer.assign(topicPartitions.toList.asJava)
       topicPartitions.map( tp => {
@@ -119,7 +118,7 @@ class KafkaCluster[K: ClassTag, V: ClassTag](val kafkaParams: Map[String, String
   }
 
   def getLatestOffsetsWithLeaders(
-      topicPartitions: Set[TopicPartition]
+    topicPartitions: Set[TopicPartition]
     ): Map[TopicPartition, LeaderOffset] = {
     getOffsets(topicPartitions, OffsetResetStrategy.LATEST)
   }
