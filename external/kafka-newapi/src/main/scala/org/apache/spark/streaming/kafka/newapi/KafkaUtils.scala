@@ -243,7 +243,7 @@ object KafkaUtils {
    * @tparam R type returned by messageHandler
    * @return DStream of R
    */
-    def createDirectStream[K: ClassTag, V: ClassTag, R: ClassTag](
+  def createDirectStream[K: ClassTag, V: ClassTag, R: ClassTag](
       ssc: StreamingContext,
       kafkaParams: Map[String, String],
       fromOffsets: Map[TopicPartition, Long],
@@ -402,12 +402,8 @@ object KafkaUtils {
       Set(topics.asScala.toSeq: _*))
   }
 
-  def createOffsetRange(
-      topic: String,
-      partition: JInt,
-      fromOffset: JLong,
-      untilOffset: JLong): OffsetRange = OffsetRange.create(topic, partition, fromOffset,
-      untilOffset)
+  def createOffsetRange(topic: String, partition: JInt, fromOffset: JLong, untilOffset: JLong):
+    OffsetRange = OffsetRange.create(topic, partition, fromOffset, untilOffset)
 
   def createTopicAndPartition(topic: String, partition: JInt): TopicAndPartition =
     TopicAndPartition(topic, partition)
@@ -505,7 +501,6 @@ private[kafka] class KafkaUtilsPythonHelper {
       topics: JSet[String],
       fromOffsets: JMap[TopicPartition, JLong],
       messageHandler: ConsumerRecord[Array[Byte], Array[Byte]] => V): DStream[V] = {
-
     val currentFromOffsets = if (!fromOffsets.isEmpty) {
       val topicsFromOffsets = fromOffsets.keySet().asScala.map(_.topic)
       if (topicsFromOffsets != topics.asScala.toSet) {
@@ -530,12 +525,8 @@ private[kafka] class KafkaUtilsPythonHelper {
       messageHandler)
   }
 
-  def createOffsetRange(
-      topic: String,
-      partition: JInt,
-      fromOffset: JLong,
-      untilOffset: JLong): OffsetRange = OffsetRange.create(topic, partition, fromOffset,
-      untilOffset)
+  def createOffsetRange(topic: String, partition: JInt, fromOffset: JLong, untilOffset: JLong):
+    OffsetRange = OffsetRange.create(topic, partition, fromOffset, untilOffset)
 
   def createTopicAndPartition(topic: String, partition: JInt): TopicPartition =
     new TopicPartition(topic, partition)
