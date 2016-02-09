@@ -73,27 +73,24 @@ R: ClassTag] private[spark] (
     override def getNext(): R = {
       if (requestOffset == part.untilOffset) {
         finished = true
-        null.asInstanceOf[R]
+        return null.asInstanceOf[R]
       }
 
       if (iter == null || !iter.hasNext) {
         iter = fetchBatch
       }
 
-      if (!iter.hasNext) {
-        assert(requestOffset == part.untilOffset, KafkaUtils.errRanOutBeforeEnd(part))
+      assert(iter.hasNext)
+      
+      val item: ConsumerRecord[K, V] = iter.next()
+      if (item.offset >= part.untilOffset) {
+        assert(item.offset == part.untilOffset, KafkaUtils.errOvershotEnd(item.offset, part))
         finished = true
         null.asInstanceOf[R]
       } else {
-        val item: ConsumerRecord[K, V] = iter.next()
-        if (item.offset >= part.untilOffset) {
-          assert(item.offset == part.untilOffset, KafkaUtils.errOvershotEnd(item.offset, part))
-          finished = true
-          null.asInstanceOf[R]
-        } else {
-          requestOffset = item.offset() + 1
-          messageHandler(item)
-        }
+        requestOffset = item.offset() + 1
+        messageHandler(item)
       }
     }
+    
 }
