@@ -18,18 +18,13 @@ package org.apache.spark.streaming.kafka
 
 import java.net.InetSocketAddress
 
-import kafka.utils.ZkUtils
-import org.apache.kafka.common.security.JaasUtils
+import kafka.admin.AdminUtils
 import org.apache.spark.util.Utils
 import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.server.{NIOServerCnxnFactory, ZooKeeperServer}
 
 class KafkaShim_v0_9 (val zkHost: String, var zkPort: Int) extends KafkaShim {
-  private var zkUtils: ZkUtils = null
-  // Flag to test whether the system is correctly started
-  private var zkReady = false
-
-  private var zookeeper: EmbeddedZookeeper = _
+  private var zkUtils: kafka.utils.ZkUtils = null
 
   // Zookeeper related configurations
   // private val zkHost = "localhost"
@@ -37,44 +32,30 @@ class KafkaShim_v0_9 (val zkHost: String, var zkPort: Int) extends KafkaShim {
   private val zkConnectionTimeout = 60000
   private val zkSessionTimeout = 6000
 
-
-  def zkAddress: String = {
-    assert(zkReady, "Zookeeper not setup yet or already torn down, cannot get zookeeper address")
-    s"$zkHost:$zkPort"
-  }
-
-  def zookeeperUtils: ZkUtils = {
-    assert(zkReady, "Zookeeper not setup yet or already torn down, cannot get zookeeper client")
-    Option(zkUtils).getOrElse(
-      throw new IllegalStateException("Zookeeper client is not yet initialized"))
-  }
-
   // Set up the Embedded Zookeeper server and get the proper Zookeeper port
-  private def setupEmbeddedZookeeper(): Unit = {
-    // Zookeeper server startup
-    zookeeper = new EmbeddedZookeeper(s"$zkHost:$zkPort")
-    // Get the actual zookeeper binding port
-    zkPort = zookeeper.actualPort
-    val zkClient = ZkUtils.createZkClient(s"$zkHost:$zkPort", zkSessionTimeout, zkConnectionTimeout)
-    zkUtils = ZkUtils(zkClient, JaasUtils.isZkSecurityEnabled())
-    zkReady = true
+  def setup(): Unit = {
+    val zkClient = kafka.utils.ZkUtils.createZkClient(s"$zkHost:$zkPort", zkSessionTimeout,
+      zkConnectionTimeout)
+
+    zkUtils = kafka.utils.ZkUtils(zkClient, org.apache.kafka.common.security.JaasUtils
+      .isZkSecurityEnabled())
   }
 
 
   override def createTopic(topic: String, partitions: Int, replicationFactor: Int): Unit = {
-
+    AdminUtils.createTopic(zkUtils, topic, partitions, replicationFactor)
   }
 
   override def getLeaderForPartition(topic: String, partition: Int): Option[Int] = {
-    None
+    zkUtils.getLeaderForPartition(topic, partition)
   }
 
   override def updatePersistentPath(path: String, data: String): Unit = {
-
+    zkUtils.updatePersistentPath(path, data)
   }
 
-  override def readDataMaybeNull(path: String): Option[(String, Stat)] = {
-    None
+  override def readDataMaybeNull(path: String): (Option[String], Stat) = {
+    zkUtils.readDataMaybeNull(path)
   }
 
   private class EmbeddedZookeeper(val zkConnect: String) {
