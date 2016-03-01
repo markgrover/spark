@@ -19,6 +19,8 @@ package org.apache.spark.streaming.kafka
 
 import java.io.File
 
+import org.I0Itec.zkclient.exception.ZkNoNodeException
+
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -33,6 +35,7 @@ import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.{Milliseconds, StreamingContext}
 import org.apache.spark.util.Utils
+import org.apache.zookeeper.data.Stat
 
 class ReliableKafkaStreamSuite extends SparkFunSuite
     with BeforeAndAfterAll with BeforeAndAfter with Eventually {
@@ -143,6 +146,7 @@ class ReliableKafkaStreamSuite extends SparkFunSuite
   private def getCommitOffset(groupId: String, topic: String, partition: Int): Option[Long] = {
     val topicDirs = new ZKGroupTopicDirs(groupId, topic)
     val zkPath = s"${topicDirs.consumerOffsetDir}/$partition"
-    kafkaTestUtils.zookeeperUtils.readDataMaybeNull(zkPath)._1.map(_.toLong)
+    kafkaTestUtils.readDataMaybeNull(zkPath)._1.map(_.toLong)
   }
+
 }

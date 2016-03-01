@@ -23,18 +23,23 @@ import java.net.InetSocketAddress
 import java.util.{Map => JMap, Properties}
 import java.util.concurrent.TimeoutException
 
+import org.I0Itec.zkclient.ZkClient
+import org.I0Itec.zkclient.exception.{ZkNoNodeException, ZkMarshallingError}
+import org.I0Itec.zkclient.serialize.ZkSerializer
+import org.apache.zookeeper.data.Stat
+
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.collection.Map
 import scala.language.postfixOps
 import scala.util.control.NonFatal
 
-import kafka.admin.AdminUtils
+import kafka.admin.TopicCommand
 import kafka.api.Request
 import kafka.producer.{KeyedMessage, Producer, ProducerConfig}
 import kafka.serializer.StringEncoder
 import kafka.server.{KafkaConfig, KafkaServer}
-import kafka.utils.ZkUtils
-import org.apache.kafka.common.security.JaasUtils
+import kafka.utils.{ZkUtils, Json}
 import org.apache.zookeeper.server.{NIOServerCnxnFactory, ZooKeeperServer}
 
 import org.apache.spark.{Logging, SparkConf}
@@ -56,8 +61,7 @@ private[kafka] class KafkaTestUtils extends Logging {
   private val zkSessionTimeout = 6000
 
   private var zookeeper: EmbeddedZookeeper = _
-
-  private var zkUtils: ZkUtils = _
+  private var zkClient: ZkClient = _
 
   // Kafka broker related configurations
   private val brokerHost = "localhost"
@@ -84,9 +88,9 @@ private[kafka] class KafkaTestUtils extends Logging {
     s"$brokerHost:$brokerPort"
   }
 
-  def zookeeperUtils: ZkUtils = {
+  def zookeeperClient: ZkClient = {
     assert(zkReady, "Zookeeper not setup yet or already torn down, cannot get zookeeper client")
-    Option(zkUtils).getOrElse(
+    Option(zkClient).getOrElse(
       throw new IllegalStateException("Zookeeper client is not yet initialized"))
   }
 
@@ -96,8 +100,8 @@ private[kafka] class KafkaTestUtils extends Logging {
     zookeeper = new EmbeddedZookeeper(s"$zkHost:$zkPort")
     // Get the actual zookeeper binding port
     zkPort = zookeeper.actualPort
-    val zkClient = ZkUtils.createZkClient(s"$zkHost:$zkPort", zkSessionTimeout, zkConnectionTimeout)
-    zkUtils = ZkUtils(zkClient, JaasUtils.isZkSecurityEnabled())
+    zkClient = new ZkClient(s"$zkHost:$zkPort", zkSessionTimeout, zkConnectionTimeout,
+      ZKStringSerializer)
     zkReady = true
   }
 
@@ -140,9 +144,9 @@ private[kafka] class KafkaTestUtils extends Logging {
 
     brokerConf.logDirs.foreach { f => Utils.deleteRecursively(new File(f)) }
 
-    if (zkUtils != null) {
-      zkUtils.close()
-      zkUtils = null
+    if (zkClient != null) {
+      zkClient.close()
+      zkClient = null
     }
 
     if (zookeeper != null) {
@@ -153,7 +157,10 @@ private[kafka] class KafkaTestUtils extends Logging {
 
   /** Create a Kafka topic and wait until it is propagated to the whole cluster */
   def createTopic(topic: String): Unit = {
-    AdminUtils.createTopic(zkUtils, topic, 1, 1)
+
+    val args = Array("--create", "--zookeeper", s"$zkHost:$zkPort", "--topic", topic,
+      "--partitions", "1", "--replication-factor", "1")
+    TopicCommand.main(args)
     // wait until metadata is propagated
     waitUntilMetadataIsPropagated(topic, 0)
   }
@@ -234,7 +241,7 @@ private[kafka] class KafkaTestUtils extends Logging {
       case Some(partitionState) =>
         val leaderAndInSyncReplicas = partitionState.leaderIsrAndControllerEpoch.leaderAndIsr
 
-        zkUtils.getLeaderForPartition(topic, partition).isDefined &&
+        getLeaderForPartition(topic, partition).isDefined &&
           Request.isValidBrokerId(leaderAndInSyncReplicas.leader) &&
           leaderAndInSyncReplicas.isr.size >= 1
 
@@ -267,5 +274,48 @@ private[kafka] class KafkaTestUtils extends Logging {
       Utils.deleteRecursively(logDir)
     }
   }
+
+  private object ZKStringSerializer extends ZkSerializer {
+
+    @throws(classOf[ZkMarshallingError])
+    def serialize(data : Object) : Array[Byte] = data.asInstanceOf[String].getBytes("UTF-8")
+
+    @throws(classOf[ZkMarshallingError])
+    def deserialize(bytes : Array[Byte]) : Object = {
+      if (bytes == null) {
+        null
+      }
+      else {
+        new String(bytes, "UTF-8")
+      }
+    }
+  }
+
+  private def getLeaderForPartition(topic: String, partition: Int): Option[Int] = {
+    val leaderAndIsrOpt = readDataMaybeNull(ZkUtils.getTopicPartitionLeaderAndIsrPath(topic,
+      partition))._1
+    leaderAndIsrOpt match {
+      case Some(leaderAndIsr) =>
+        Json.parseFull(leaderAndIsr) match {
+          case Some(m) =>
+            Some(m.asInstanceOf[Map[String, Any]].get("leader").get.asInstanceOf[Int])
+          case None => None
+        }
+      case None => None
+    }
+  }
+
+  def readDataMaybeNull(path: String): (Option[String], Stat) = {
+    val stat: Stat = new Stat()
+    val dataAndStat = try {
+      (Some(zkClient.readData(path, stat)), stat)
+    } catch {
+      case e: ZkNoNodeException =>
+        (None, stat)
+      case e2: Throwable => throw e2
+    }
+    dataAndStat
+  }
+
 }
 

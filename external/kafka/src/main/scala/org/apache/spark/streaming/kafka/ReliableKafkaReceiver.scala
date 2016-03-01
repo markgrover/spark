@@ -20,6 +20,9 @@ package org.apache.spark.streaming.kafka
 import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, ThreadPoolExecutor}
 
+import org.I0Itec.zkclient.ZkClient
+import org.I0Itec.zkclient.exception.{ZkNodeExistsException, ZkNoNodeException}
+
 import scala.collection.{mutable, Map}
 import scala.reflect.{classTag, ClassTag}
 
@@ -27,13 +30,14 @@ import kafka.common.TopicAndPartition
 import kafka.consumer.{Consumer, ConsumerConfig, ConsumerConnector, KafkaStream}
 import kafka.message.MessageAndMetadata
 import kafka.serializer.Decoder
-import kafka.utils.{VerifiableProperties, ZKGroupTopicDirs, ZkUtils}
-import org.apache.kafka.common.security.JaasUtils
+import kafka.utils.{ZkPath, VerifiableProperties, ZKGroupTopicDirs}
 
 import org.apache.spark.{Logging, SparkEnv}
 import org.apache.spark.storage.{StorageLevel, StreamBlockId}
 import org.apache.spark.streaming.receiver.{BlockGenerator, BlockGeneratorListener, Receiver}
 import org.apache.spark.util.ThreadUtils
+import org.apache.zookeeper.ZooDefs
+import org.apache.zookeeper.data.ACL
 
 /**
  * ReliableKafkaReceiver offers the ability to reliably store data into BlockManager without loss.
@@ -65,8 +69,8 @@ class ReliableKafkaReceiver[
   /** High level consumer to connect to Kafka. */
   private var consumerConnector: ConsumerConnector = null
 
-  /** zkUtils to connect to Zookeeper to commit the offsets. */
-  private var zkUtils: ZkUtils = null
+  /** zkClient to connect to Zookeeper to commit the offsets. */
+  private var zkClient: ZkClient = null
 
   /**
    * A HashMap to manage the offset for each topic/partition, this HashMap is called in
@@ -118,9 +122,8 @@ class ReliableKafkaReceiver[
     consumerConnector = Consumer.create(consumerConfig)
     logInfo(s"Connected to Zookeeper: ${consumerConfig.zkConnect}")
 
-    val zkClient = ZkUtils.createZkClient(consumerConfig.zkConnect, consumerConfig
+    val zkClient = new ZkClient(consumerConfig.zkConnect, consumerConfig
       .zkSessionTimeoutMs, consumerConfig.zkConnectionTimeoutMs)
-    zkUtils = ZkUtils(zkClient, JaasUtils.isZkSecurityEnabled())
 
     messageHandlerThreadPool = ThreadUtils.newDaemonFixedThreadPool(
       topics.values.sum, "KafkaMessageHandler")
@@ -156,9 +159,9 @@ class ReliableKafkaReceiver[
       consumerConnector = null
     }
 
-    if (zkUtils != null) {
-      zkUtils.close()
-      zkUtils = null
+    if (zkClient != null) {
+      zkClient.close()
+      zkClient = null
     }
 
     if (blockGenerator != null) {
@@ -234,7 +237,7 @@ class ReliableKafkaReceiver[
    * metadata schema in Zookeeper.
    */
   private def commitOffset(offsetMap: Map[TopicAndPartition, Long]): Unit = {
-    if (zkUtils == null) {
+    if (zkClient == null) {
       val thrown = new IllegalStateException("Zookeeper client is unexpectedly null")
       stop("Zookeeper client is not initialized before commit offsets to ZK", thrown)
       return
@@ -245,7 +248,7 @@ class ReliableKafkaReceiver[
         val topicDirs = new ZKGroupTopicDirs(groupId, topicAndPart.topic)
         val zkPath = s"${topicDirs.consumerOffsetDir}/${topicAndPart.partition}"
 
-        zkUtils.updatePersistentPath(zkPath, offset.toString)
+        updatePersistentPath(zkPath, offset.toString)
       } catch {
         case e: Exception =>
           logWarning(s"Exception during commit offset $offset for topic" +
@@ -299,4 +302,38 @@ class ReliableKafkaReceiver[
       reportError(message, throwable)
     }
   }
+
+  /**
+   * Update the value of a persistent node with the given path and data.
+   * create parent directory if necessary. Never throw NodeExistException.
+   * Return the updated path zkVersion
+   */
+  private def updatePersistentPath(path: String, data: String, acls: java.util.List[ACL] =
+  ZooDefs.Ids.OPEN_ACL_UNSAFE) = {
+    try {
+      zkClient.writeData(path, data)
+    } catch {
+      case e: ZkNoNodeException => {
+        createParentPath(path)
+        try {
+          ZkPath.createPersistent(zkClient, path, data, acls)
+        } catch {
+          case e: ZkNodeExistsException =>
+            zkClient.writeData(path, data)
+          case e2: Throwable => throw e2
+        }
+      }
+      case e2: Throwable => throw e2
+    }
+  }
+
+  private def createParentPath(path: String, acls: java.util.List[ACL] = ZooDefs.Ids
+    .OPEN_ACL_UNSAFE): Unit = {
+    val parentDir = path.substring(0, path.lastIndexOf('/'))
+    if (parentDir.length != 0) {
+      ZkPath.createPersistent(zkClient, parentDir, true, acls)
+    }
+  }
+
+
 }
