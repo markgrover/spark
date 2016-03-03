@@ -68,6 +68,7 @@ class DirectKafkaInputDStream[
   protected[streaming] override val checkpointData =
     new DirectKafkaInputDStreamCheckpointData
 
+  protected var kc = new KafkaCluster[K, V](kafkaParams)
 
   /**
    * Asynchronously maintains & sends new rate limits to the receiver through the receiver tracker.
@@ -172,7 +173,7 @@ class DirectKafkaInputDStream[
 
   private[streaming]
   class DirectKafkaInputDStreamCheckpointData extends DStreamCheckpointData(this) {
-    def batchForTime: mutable.HashMap[Time, Array[(String, Int, Long, Long, String)]] = {
+    def batchForTime: mutable.HashMap[Time, Array[(String, Int, Long, Long)]] = {
       data.asInstanceOf[mutable.HashMap[Time, Array[OffsetRange.OffsetRangeTuple]]]
     }
 
@@ -188,11 +189,12 @@ class DirectKafkaInputDStream[
 
     override def restore() {
       // this is assuming that the topics don't change during execution, which is true currently
-
+      val topics = fromOffsets.keySet
+      val leaders = kc.findLeaders(topics)
       batchForTime.toSeq.sortBy(_._1)(Time.ordering).foreach { case (t, b) =>
         logInfo(s"Restoring KafkaRDD for time $t ${b.mkString("[", ", ", "]")}")
         generatedRDDs += t -> new KafkaRDD[K, V, R](
-          context.sparkContext, kafkaParams, b.map(OffsetRange(_)), messageHandler)
+          context.sparkContext, kafkaParams, b.map(OffsetRange(_)), leaders, messageHandler)
       }
     }
   }

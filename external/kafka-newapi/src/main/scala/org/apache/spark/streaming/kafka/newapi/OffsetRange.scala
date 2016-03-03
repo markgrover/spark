@@ -41,24 +41,13 @@ trait HasOffsetRanges {
  * @param partition Kafka partition id
  * @param fromOffset Inclusive starting offset
  * @param untilOffset Exclusive ending offset
- * @param leaderHost preferred kafka host, i.e. the leader at the time the rdd was created
  */
 final class OffsetRange private(
     val topic: String,
     val partition: Int,
     val fromOffset: Long,
-    val untilOffset: Long,
-    val leaderHost: String) extends Serializable {
+    val untilOffset: Long) extends Serializable {
   import OffsetRange.OffsetRangeTuple
-
-  def this(
-      topic: String,
-      partition: Int,
-      fromOffset: Long,
-      untilOffset: Long
-    ) = {
-    this(topic, partition, fromOffset, untilOffset, null)
-  }
 
   def topicPartition(): TopicPartition = new TopicPartition(topic, partition)
 
@@ -79,13 +68,12 @@ final class OffsetRange private(
   }
 
   override def toString(): String = {
-    s"OffsetRange(topic: '$topic', partition: $partition, range: [$fromOffset -> $untilOffset], " +
-      s"leaderHost: '$leaderHost')"
+    s"OffsetRange(topic: '$topic', partition: $partition, range: [$fromOffset -> $untilOffset])"
   }
 
   /** this is to avoid ClassNotFoundException during checkpoint restore */
   private[streaming]
-  def toTuple: OffsetRangeTuple = (topic, partition, fromOffset, untilOffset, leaderHost)
+  def toTuple: OffsetRangeTuple = (topic, partition, fromOffset, untilOffset)
 }
 
 /**
@@ -104,15 +92,6 @@ object OffsetRange {
   def apply(topic: String, partition: Int, fromOffset: Long, untilOffset: Long): OffsetRange =
     new OffsetRange(topic, partition, fromOffset, untilOffset)
 
-
-  def apply(
-      topic: String,
-      partition: Int,
-      fromOffset: Long,
-      untilOffset: Long,
-      leaderHost: String): OffsetRange =
-    new OffsetRange(topic, partition, fromOffset, untilOffset, leaderHost)
-
   def apply(
       topicPartition: TopicPartition,
       fromOffset: Long,
@@ -121,7 +100,7 @@ object OffsetRange {
 
   /** this is to avoid ClassNotFoundException during checkpoint restore */
   private[kafka]
-  type OffsetRangeTuple = (String, Int, Long, Long, String)
+  type OffsetRangeTuple = (String, Int, Long, Long)
 
   private[kafka]
   def apply(t: OffsetRangeTuple) =

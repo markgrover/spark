@@ -62,9 +62,9 @@ class KafkaCluster[K: ClassTag, V: ClassTag](val kafkaParams: Map[String, String
     }
   }
 
-  def getPartitionsLeader(topics: Set[String]): Map[TopicPartition, String] = {
+  def getPartitionsLeader(topics: Set[String]): Map[TopicPartition, (String, Int)] = {
     getPartitionInfo(topics).map { pi =>
-      new TopicPartition(pi.topic, pi.partition) -> pi.leader.host
+      new TopicPartition(pi.topic, pi.partition) -> (pi.leader.host, pi.leader.port)
     }.toMap
   }
 
@@ -140,10 +140,15 @@ class KafkaCluster[K: ClassTag, V: ClassTag](val kafkaParams: Map[String, String
       }
       topicPartitions.map { tp =>
         val pos = consumer.position(tp)
-        tp -> new LeaderOffset(tplMap(tp), pos)
+        tp -> new LeaderOffset(tplMap(tp)._1, tplMap(tp)._2, pos)
       }.toMap
 
     }.asInstanceOf[Map[TopicPartition, LeaderOffset]]
+  }
+
+  def findLeaders(topicPartitions: Set[TopicPartition]): Map[TopicPartition, (String, Int)] = {
+    val topics = topicPartitions.map { _.topic }
+    getPartitionsLeader(topics)
   }
 
   private def withConsumer(fn: KafkaConsumer[K, V] => Any): Any = {
@@ -164,5 +169,5 @@ class KafkaCluster[K: ClassTag, V: ClassTag](val kafkaParams: Map[String, String
 
 @DeveloperApi
 object KafkaCluster {
-  case class LeaderOffset(host: String, offset: Long)
+  case class LeaderOffset(host: String, port: Int, offset: Long)
 }

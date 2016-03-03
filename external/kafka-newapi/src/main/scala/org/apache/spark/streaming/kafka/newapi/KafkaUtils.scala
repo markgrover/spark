@@ -64,6 +64,13 @@ object KafkaUtils {
 
   }
 
+  private def newLeadersForRanges[K, V](
+    kc: KafkaCluster[K, V],
+    offsetRanges: Array[OffsetRange]): Map[TopicPartition, (String, Int)] = {
+    val topics = offsetRanges.map(_.topic).toSet
+    kc.getPartitionsLeader(topics)
+  }
+
   /** Make sure offsets are available in kafka, or throw an exception */
   private def checkOffsets(
       kafkaParams: Map[String, String],
@@ -84,8 +91,7 @@ object KafkaUtils {
       }
 
       offsetRanges.map { o =>
-        OffsetRange(o.topic, o.partition, o.fromOffset, o.untilOffset,
-          high(o.topicPartition()).host)
+        OffsetRange(o.topic, o.partition, o.fromOffset, o.untilOffset)
       }
     } finally {
       kc.close()
@@ -111,10 +117,12 @@ object KafkaUtils {
       kafkaParams: Map[String, String],
       offsetRanges: Array[OffsetRange]): RDD[(K, V)] = sc.withScope {
     val messageHandler = (cr: ConsumerRecord[K, V]) => (cr.key, cr.value)
+    val kc = new KafkaCluster[K, V](kafkaParams)
     new KafkaRDD[K, V, (K, V)](
       sc,
       addSSLOptions(kafkaParams, sc),
       checkOffsets(kafkaParams, offsetRanges),
+      newLeadersForRanges(kc, offsetRanges),
       messageHandler)
   }
 
@@ -147,6 +155,7 @@ object KafkaUtils {
     new KafkaRDD[K, V, R](sc,
       addSSLOptions(kafkaParams, sc),
       checkOffsets(kafkaParams, offsetRanges),
+      newLeadersForRanges(kc, offsetRanges),
       cleanedHandler)
   }
 
