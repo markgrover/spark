@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory
 import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
+import java.nio.file.Files
 import java.util.{Locale, Properties, Random, UUID}
 import java.util.concurrent._
 import javax.net.ssl.HttpsURLConnection
@@ -34,7 +35,7 @@ import scala.reflect.ClassTag
 import scala.util.Try
 import scala.util.control.{ControlThrowable, NonFatal}
 
-import com.google.common.io.{ByteStreams, Files}
+import com.google.common.io.{ByteStreams, Files => GFiles}
 import com.google.common.net.InetAddresses
 import org.apache.commons.lang3.SystemUtils
 import org.apache.hadoop.conf.Configuration
@@ -516,7 +517,7 @@ private[spark] object Utils extends Logging {
 
     // The file does not exist in the target directory. Copy or move it there.
     if (removeSourceFile) {
-      Files.move(sourceFile, destFile)
+      Files.move(sourceFile.toPath, destFile.toPath)
     } else {
       logInfo(s"Copying ${sourceFile.getAbsolutePath} to ${destFile.getAbsolutePath}")
       copyRecursive(sourceFile, destFile)
@@ -534,7 +535,7 @@ private[spark] object Utils extends Logging {
         case (f1, f2) => filesEqualRecursive(f1, f2)
       }
     } else if (file1.isFile && file2.isFile) {
-      Files.equal(file1, file2)
+      GFiles.equal(file1, file2)
     } else {
       false
     }
@@ -548,7 +549,7 @@ private[spark] object Utils extends Logging {
       val subfiles = source.listFiles()
       subfiles.foreach(f => copyRecursive(f, new File(dest, f.getName)))
     } else {
-      Files.copy(source, dest)
+      Files.copy(source.toPath, dest.toPath)
     }
   }
 
@@ -1596,30 +1597,18 @@ private[spark] object Utils extends Logging {
   }
 
   /**
-   * Creates a symlink. Note jdk1.7 has Files.createSymbolicLink but not used here
-   * for jdk1.6 support.  Supports windows by doing copy, everything else uses "ln -sf".
+   * Creates a symlink.
    * @param src absolute path to the source
    * @param dst relative path for the destination
    */
-  def symlink(src: File, dst: File) {
+  def symlink(src: File, dst: File): Unit = {
     if (!src.isAbsolute()) {
       throw new IOException("Source must be absolute")
     }
     if (dst.isAbsolute()) {
       throw new IOException("Destination must be relative")
     }
-    var cmdSuffix = ""
-    val linkCmd = if (isWindows) {
-      // refer to http://technet.microsoft.com/en-us/library/cc771254.aspx
-      cmdSuffix = " /s /e /k /h /y /i"
-      "cmd /c xcopy "
-    } else {
-      cmdSuffix = ""
-      "ln -sf "
-    }
-    import scala.sys.process._
-    (linkCmd + src.getAbsolutePath() + " " + dst.getPath() + cmdSuffix) lines_!
-    ProcessLogger(line => logInfo(line))
+    Files.createSymbolicLink(dst.toPath, src.toPath)
   }
 
 
@@ -2206,6 +2195,16 @@ private[spark] object Utils extends Logging {
     isInDirectory(parent, child.getParentFile)
   }
 
+
+  /**
+   *
+   * @return whether it is local mode
+   */
+  def isLocalMaster(conf: SparkConf): Boolean = {
+    val master = conf.get("spark.master", "")
+    master == "local" || master.startsWith("local[")
+  }
+
   /**
    * Return whether dynamic allocation is enabled in the given conf
    * Dynamic allocation and explicitly setting the number of executors are inherently
@@ -2213,8 +2212,13 @@ private[spark] object Utils extends Logging {
    * the latter should override the former (SPARK-9092).
    */
   def isDynamicAllocationEnabled(conf: SparkConf): Boolean = {
-    conf.getBoolean("spark.dynamicAllocation.enabled", false) &&
-      conf.getInt("spark.executor.instances", 0) == 0
+    val numExecutor = conf.getInt("spark.executor.instances", 0)
+    val dynamicAllocationEnabled = conf.getBoolean("spark.dynamicAllocation.enabled", false)
+    if (numExecutor != 0 && dynamicAllocationEnabled) {
+      logWarning("Dynamic Allocation and num executors both set, thus dynamic allocation disabled.")
+    }
+    numExecutor == 0 && dynamicAllocationEnabled &&
+      (!isLocalMaster(conf) || conf.getBoolean("spark.dynamicAllocation.testing", false))
   }
 
   def tryWithResource[R <: Closeable, T](createResource: => R)(f: R => T): T = {
