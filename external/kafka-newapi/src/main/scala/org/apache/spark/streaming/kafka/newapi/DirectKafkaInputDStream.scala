@@ -53,9 +53,9 @@ class DirectKafkaInputDStream[
   K: ClassTag,
   V: ClassTag,
   R: ClassTag](
-    @transient ssc_ : StreamingContext,
+    ssc_ : StreamingContext,
     val kafkaParams: Map[String, String],
-    @transient val fromOffsets: Map[TopicPartition, Long],
+    val fromOffsets: Map[TopicPartition, Long],
     messageHandler: ConsumerRecord[K, V] => R
   ) extends InputDStream[R](ssc_) with Logging {
 
@@ -63,12 +63,10 @@ class DirectKafkaInputDStream[
     "spark.streaming.kafka.maxRetries", 1)
 
   // Keep this consistent with how other streams are named (e.g. "Flume polling stream [2]")
-  private[streaming] override def name: String = s"Kafka new consumer based direct stream [$id]"
+  private[streaming] override def name: String = s"Kafka new consumer direct stream [$id]"
 
   protected[streaming] override val checkpointData =
     new DirectKafkaInputDStreamCheckpointData
-
-  protected var kc = new KafkaCluster[K, V](kafkaParams)
 
   /**
    * Asynchronously maintains & sends new rate limits to the receiver through the receiver tracker.
@@ -109,13 +107,7 @@ class DirectKafkaInputDStream[
     }
   }
 
-  // temp fix for serialization issue of TopicPartition
-  protected var serCurrentOffsets = fromOffsets.map { case(tp, l) =>
-    (tp.topic, tp.partition, l);
-  }
-
-  @transient
-  protected var currentOffsets: Map[TopicPartition, Long] = null
+  protected var currentOffsets = fromOffsets
 
   protected final def latestLeaderOffsets(): Map[TopicPartition, LeaderOffset] = {
     kafkaCluster.getLatestOffsetsWithLeaders(currentOffsets.keySet)
@@ -133,7 +125,6 @@ class DirectKafkaInputDStream[
   }
 
   override def compute(validTime: Time): Option[KafkaRDD[K, V, R]] = {
-    currentOffsets = serCurrentOffsets.map { i => new TopicPartition(i._1, i._2) -> i._3 }.toMap
     val untilOffsets = clamp(latestLeaderOffsets())
     val rdd = KafkaRDD[K, V, R](
       context.sparkContext, kafkaParams, currentOffsets, untilOffsets, messageHandler)
@@ -157,7 +148,7 @@ class DirectKafkaInputDStream[
     val inputInfo = StreamInputInfo(id, rdd.count, metadata)
     ssc.scheduler.inputInfoTracker.reportInfo(validTime, inputInfo)
 
-    serCurrentOffsets = untilOffsets.map { kv => (kv._1.topic, kv._1.partition, kv._2.offset) }
+    currentOffsets = untilOffsets.map(kv => kv._1 -> kv._2.offset)
     Some(rdd)
   }
 
@@ -190,7 +181,7 @@ class DirectKafkaInputDStream[
     override def restore() {
       // this is assuming that the topics don't change during execution, which is true currently
       val topics = fromOffsets.keySet
-      val leaders = kc.findLeaders(topics)
+      val leaders = kafkaCluster.findLeaders(topics)
       batchForTime.toSeq.sortBy(_._1)(Time.ordering).foreach { case (t, b) =>
         logInfo(s"Restoring KafkaRDD for time $t ${b.mkString("[", ", ", "]")}")
         generatedRDDs += t -> new KafkaRDD[K, V, R](
