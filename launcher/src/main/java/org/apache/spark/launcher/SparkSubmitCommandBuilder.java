@@ -18,8 +18,10 @@
 package org.apache.spark.launcher;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import static org.apache.spark.launcher.CommandBuilderUtils.*;
 
@@ -352,11 +354,21 @@ class SparkSubmitCommandBuilder extends AbstractCommandBuilder {
     String sparkHome = getSparkHome();
 
     File jarsDir;
+    File exampleJar;
     if (new File(sparkHome, "RELEASE").isFile()) {
       jarsDir = new File(sparkHome, "examples/jars");
     } else {
       jarsDir = new File(sparkHome,
         String.format("examples/target/scala-%s/jars", getScalaVersion()));
+      exampleJar = new File(sparkHome, String.format("examples/target/scala-%s/spark-example.jar", getScalaVersion()));
+      File exampleTargetDir = new File(sparkHome, "examples/target");
+      final Pattern exampleJarPattern = Pattern.compile("spark-examples*[^-sources].jar");
+      exampleTargetDir.listFiles(new FileFilter() {
+        @Override
+        public boolean accept(File pathname) {
+          return exampleJarPattern.matcher(pathname.getName()).matches();
+        }
+      });
     }
 
     boolean foundDir = jarsDir.isDirectory();

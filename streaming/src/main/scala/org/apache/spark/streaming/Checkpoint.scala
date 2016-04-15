@@ -33,7 +33,7 @@ import org.apache.spark.util.Utils
 
 private[streaming]
 class Checkpoint(ssc: StreamingContext, val checkpointTime: Time)
-  extends Logging with Serializable {
+    extends Logging with Serializable {
   val master = ssc.sc.master
   val framework = ssc.sc.appName
   val jars = ssc.sc.jars
