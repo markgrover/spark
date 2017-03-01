@@ -24,6 +24,7 @@ import java.security.PrivilegedExceptionAction
 import java.text.ParseException
 
 import scala.annotation.tailrec
+import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap, Map}
 import scala.util.Properties
 
@@ -829,32 +830,49 @@ private[spark] object SparkSubmitUtils {
 
   /**
    * Represents a Maven Coordinate
+   *
    * @param groupId the groupId of the coordinate
    * @param artifactId the artifactId of the coordinate
    * @param version the version of the coordinate
+   * @param classifier the optional classifier of the coordinate
    */
-  private[deploy] case class MavenCoordinate(groupId: String, artifactId: String, version: String) {
-    override def toString: String = s"$groupId:$artifactId:$version"
+  private[deploy] case class MavenCoordinate(
+      groupId: String,
+      artifactId: String,
+      version: String,
+      classifier: Option[String] = None) {
+    override def toString: String =
+      s"$groupId:$artifactId:$version${classifier.map(":" + _).getOrElse("")}"
   }
 
 /**
  * Extracts maven coordinates from a comma-delimited string. Coordinates should be provided
  * in the format `groupId:artifactId:version` or `groupId/artifactId:version`.
+ *
  * @param coordinates Comma-delimited string of maven coordinates
  * @return Sequence of Maven coordinates
  */
   def extractMavenCoordinates(coordinates: String): Seq[MavenCoordinate] = {
     coordinates.split(",").map { p =>
       val splits = p.replace("/", ":").split(":")
-      require(splits.length == 3, s"Provided Maven Coordinates must be in the form " +
-        s"'groupId:artifactId:version'. The coordinate provided is: $p")
+      require(splits.length == 3 || splits.length == 4, s"Provided Maven Coordinates must be in " +
+        s"the form 'groupId:artifactId:version' or 'groupId:artifactId:version:classifier'. The " +
+        s"coordinate provided is: $p")
       require(splits(0) != null && splits(0).trim.nonEmpty, s"The groupId cannot be null or " +
         s"be whitespace. The groupId provided is: ${splits(0)}")
       require(splits(1) != null && splits(1).trim.nonEmpty, s"The artifactId cannot be null or " +
         s"be whitespace. The artifactId provided is: ${splits(1)}")
       require(splits(2) != null && splits(2).trim.nonEmpty, s"The version cannot be null or " +
         s"be whitespace. The version provided is: ${splits(2)}")
-      new MavenCoordinate(splits(0), splits(1), splits(2))
+      val classifier = if (splits.length == 4) {
+        require(splits(3).trim.nonEmpty, s"The classifier cannot be whitespace. The classifier " +
+          s"provided is: ${splits(3)}")
+        Some(splits(3))
+      } else {
+        None
+      }
+
+      new MavenCoordinate(splits(0), splits(1), splits(2), classifier)
     }
   }
 
@@ -870,6 +888,7 @@ private[spark] object SparkSubmitUtils {
 
   /**
    * Extracts maven coordinates from a comma-delimited string
+   *
    * @param defaultIvyUserDir The default user path for Ivy
    * @return A ChainResolver used by Ivy to search for and resolve dependencies.
    */
@@ -917,6 +936,7 @@ private[spark] object SparkSubmitUtils {
   /**
    * Output a comma-delimited list of paths for the downloaded jars to be added to the classpath
    * (will append to jars in SparkSubmit).
+   *
    * @param artifacts Sequence of dependencies that were resolved and retrieved
    * @param cacheDirectory directory where jars are cached
    * @return a comma-delimited list of paths for the dependencies
@@ -937,7 +957,14 @@ private[spark] object SparkSubmitUtils {
       artifacts: Seq[MavenCoordinate],
       ivyConfName: String): Unit = {
     artifacts.foreach { mvn =>
-      val ri = ModuleRevisionId.newInstance(mvn.groupId, mvn.artifactId, mvn.version)
+      val extraAttrs = mvn.classifier
+        .map(value => Map("classifier" -> value))
+        .getOrElse(Map.empty[String, String])
+      val ri = ModuleRevisionId.newInstance(
+        mvn.groupId,
+        mvn.artifactId,
+        mvn.version,
+        extraAttrs.asJava)
       val dd = new DefaultDependencyDescriptor(ri, false, false)
       dd.addDependencyConfiguration(ivyConfName, ivyConfName + "(runtime)")
       // scalastyle:off println
@@ -969,6 +996,7 @@ private[spark] object SparkSubmitUtils {
 
   /**
    * Build Ivy Settings using options with default resolvers
+   *
    * @param remoteRepos Comma-delimited string of remote repositories other than maven central
    * @param ivyPath The path to the local ivy repository
    * @return An IvySettings object
@@ -989,6 +1017,7 @@ private[spark] object SparkSubmitUtils {
 
   /**
    * Load Ivy settings from a given filename, using supplied resolvers
+   *
    * @param settingsFile Path to Ivy settings file
    * @param remoteRepos Comma-delimited string of remote repositories other than maven central
    * @param ivyPath The path to the local ivy repository
@@ -1054,6 +1083,7 @@ private[spark] object SparkSubmitUtils {
 
   /**
    * Resolves any dependencies that were supplied through maven coordinates
+   *
    * @param coordinates Comma-delimited string of maven coordinates
    * @param ivySettings An IvySettings containing resolvers to use
    * @param exclusions Exclusions to apply when resolving transitive dependencies
