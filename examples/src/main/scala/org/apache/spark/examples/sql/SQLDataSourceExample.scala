@@ -16,7 +16,9 @@
  */
 package org.apache.spark.examples.sql
 
+// $example on:jdbc_dataset$
 import java.util.Properties
+// $example off:jdbc_dataset$
 
 import org.apache.spark.sql.SparkSession
 
